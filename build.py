@@ -130,6 +130,11 @@ def make_parser():
         help='Build with unix file copy paste feature'
     )
     parser.add_argument(
+        '--incoming-only',
+        action='store_true',
+        help='YbDesk: Build incoming only (host only) version'
+    )
+    parser.add_argument(
         '--skip-cargo',
         action='store_true',
         help='Skip cargo build process, only flutter version + Linux supported currently'
@@ -284,6 +289,9 @@ def get_features(args):
     if osx:
         if args.screencapturekit:
             features.append('screencapturekit')
+    # YbDesk: 仅被控版
+    if args.incoming_only:
+        features.append('incoming_only')
     print("features:", features)
     return features
 

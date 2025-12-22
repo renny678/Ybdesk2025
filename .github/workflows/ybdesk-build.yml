@@ -1,0 +1,157 @@
+name: Build YbDesk
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - '*'
+  workflow_dispatch:
+
+env:
+  RUST_VERSION: "1.75"
+  FLUTTER_VERSION: "3.24.5"
+  LLVM_VERSION: "15.0.6"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VERSION: "1.4.4"
+
+jobs:
+  # ==================== Windows 完整版 ====================
+  build-windows-full:
+    name: Windows Full Version
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: windows-2022
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        run: |
+          $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+        shell: bash
+
+      - name: Build YbDesk (Full Version)
+        run: |
+          python3 .\build.py --portable --hwcodec --flutter --skip-portable-pack
+
+      - name: Package
+        run: |
+          mv ./flutter/build/windows/x64/runner/Release ./ybdesk-full
+          Compress-Archive -Path ./ybdesk-full -DestinationPath ybdesk-${{ env.VERSION }}-windows-full.zip
+
+      - name: Upload Full Version
+        uses: actions/upload-artifact@v4
+        with:
+          name: ybdesk-${{ env.VERSION }}-windows-full
+          path: ybdesk-${{ env.VERSION }}-windows-full.zip
+
+  # ==================== Windows 仅被控版 ====================
+  build-windows-incoming-only:
+    name: Windows Incoming Only Version
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: windows-2022-incoming
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        run: |
+          $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+        shell: bash
+
+      - name: Build YbDesk (Incoming Only Version)
+        run: |
+          python3 .\build.py --portable --hwcodec --flutter --incoming-only --skip-portable-pack
+
+      - name: Package
+        run: |
+          mv ./flutter/build/windows/x64/runner/Release ./ybdesk-incoming-only
+          Compress-Archive -Path ./ybdesk-incoming-only -DestinationPath ybdesk-${{ env.VERSION }}-windows-incoming-only.zip
+
+      - name: Upload Incoming Only Version
+        uses: actions/upload-artifact@v4
+        with:
+          name: ybdesk-${{ env.VERSION }}-windows-incoming-only
+          path: ybdesk-${{ env.VERSION }}-windows-incoming-only.zip
+
+  # ==================== 发布 Release ====================
+  create-release:
+    name: Create Release
+    needs: [build-windows-full, build-windows-incoming-only]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/**/*.zip
+          draft: false
+          prerelease: true
+
