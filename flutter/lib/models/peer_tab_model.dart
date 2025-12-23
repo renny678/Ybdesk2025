@@ -38,9 +38,9 @@ class PeerTabModel with ChangeNotifier {
     IconFont.deviceGroupFill,
   ];
   List<bool> isEnabled = List.from([
-    true,
-    true,
-    !isWeb && bind.mainGetLocalOption(key: "disable-discovery-panel") != "Y",
+    true,   // 最近会话
+    true,   // 收藏
+    false,  // 企业版禁用发现
     false,  // 企业版禁用地址簿
     false,  // 企业版禁用群组
   ]);

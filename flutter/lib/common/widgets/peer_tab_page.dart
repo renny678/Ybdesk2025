@@ -169,8 +169,10 @@ class _PeerTabPageState extends State<PeerTabPage>
                         decoration: (hover.value
                             ? (selected ? decoBorder : deco)
                             : (selected ? decoBorder : null)),
-                        child: Icon(model.tabIcon(t), color: color)
-                            .paddingSymmetric(horizontal: 4),
+                        child: Text(
+                          model.tabTooltip(t),
+                          style: TextStyle(color: color, fontSize: 13),
+                        ).paddingSymmetric(horizontal: 8),
                       ).paddingSymmetric(horizontal: 4),
                       onTap: isOptionFixed(kOptionPeerTabIndex)
                           ? null
