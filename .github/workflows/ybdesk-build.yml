@@ -16,57 +16,15 @@ env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
   CARGO_TERM_COLOR: always
+  VERSION: "1.3.6"
 
 jobs:
-  generate-bridge:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          components: "rustfmt"
-
-      - name: Install flutter_rust_bridge
-        run: |
-          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid"
-          flutter pub get --directory flutter
-
-      - name: Generate flutter_rust_bridge files
-        run: |
-          ~/.cargo/bin/flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --class-name RustdeskImpl
-
-      - name: Upload generated files
-        uses: actions/upload-artifact@v4
-        with:
-          name: bridge-files
-          path: |
-            flutter/lib/generated_bridge.dart
-            flutter/lib/generated_bridge.freezed.dart
-
-  build-for-windows:
-    name: Windows Full Version
-    needs: generate-bridge
+  build-for-windows-flutter:
+    name: Windows Flutter Build
     runs-on: windows-2022
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-
-      - name: Download bridge files
-        uses: actions/download-artifact@v4
-        with:
-          name: bridge-files
-          path: flutter/lib
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
@@ -103,16 +61,36 @@ jobs:
           vcpkg install --x-install-root="$env:VCPKG_ROOT\installed"
         shell: pwsh
 
-      - name: Build rustdesk
+      - name: Install flutter_rust_bridge
+        run: |
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid"
+          Push-Location flutter
+          flutter pub get
+          Pop-Location
+        shell: pwsh
+
+      - name: Generate flutter_rust_bridge files
+        run: |
+          ~/.cargo/bin/flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --class-name RustdeskImpl
+        shell: bash
+
+      - name: Build RustDesk
         run: |
           python build.py --portable --hwcodec --flutter
         shell: pwsh
 
-      - name: Upload Windows Full Version Artifact
+      - name: Create portable executable
+        run: |
+          Push-Location ./libs/portable
+          pip3 install -r requirements.txt
+          python ./generate.py -f ../../flutter/build/windows/x64/runner/Release -o . -e ../../flutter/build/windows/x64/runner/Release/rustdesk.exe
+          Pop-Location
+          mkdir -p ./SignOutput
+          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/YbDesk-${{ env.VERSION }}-x86_64.exe
+        shell: bash
+
+      - name: Upload Windows Portable Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: YbDesk-Windows-Full
-          path: |
-            flutter/build/windows/x64/runner/Release/*.exe
-            flutter/build/windows/x64/runner/Release/*.dll
-
+          name: YbDesk-Windows-Portable
+          path: ./SignOutput/YbDesk-*.exe
