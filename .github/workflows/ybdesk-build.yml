@@ -1,0 +1,118 @@
+name: Build YbDesk
+
+on:
+  workflow_dispatch:
+
+env:
+  SCITER_RUST_VERSION: "1.75"
+  RUST_VERSION: "1.75"
+  CARGO_NDK_VERSION: "3.1.2"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  ANDROID_FLUTTER_VERSION: "3.24.5"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  TAG_NAME: "nightly"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  CARGO_TERM_COLOR: always
+
+jobs:
+  generate-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: "rustfmt"
+
+      - name: Install flutter_rust_bridge
+        run: |
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid"
+          flutter pub get --directory flutter
+
+      - name: Generate flutter_rust_bridge files
+        run: |
+          ~/.cargo/bin/flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --class-name RustdeskImpl
+
+      - name: Upload generated files
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-files
+          path: |
+            flutter/lib/generated_bridge.dart
+            flutter/lib/generated_bridge.freezed.dart
+
+  build-for-windows:
+    name: Windows Full Version
+    needs: generate-bridge
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Download bridge files
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-files
+          path: flutter/lib
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: "rustfmt"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: aspect-build/rules_swc@v1
+        with:
+          vcpkgGitCommitId: 501db0f17ef6df184fcdbfbe0f87cde2313b6ab1
+
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg install --x-install-root="$env:VCPKG_ROOT\installed"
+        shell: pwsh
+
+      - name: Build rustdesk
+        run: |
+          python build.py --portable --hwcodec --flutter
+        shell: pwsh
+
+      - name: Upload Windows Full Version Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YbDesk-Windows-Full
+          path: |
+            flutter/build/windows/x64/runner/Release/*.exe
+            flutter/build/windows/x64/runner/Release/*.dll
+
