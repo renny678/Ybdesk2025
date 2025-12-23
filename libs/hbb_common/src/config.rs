@@ -68,12 +68,18 @@ lazy_static::lazy_static! {
     pub static ref OVERWRITE_DISPLAY_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref DEFAULT_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
     pub static ref OVERWRITE_LOCAL_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
-    pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
+    pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = {
+        let mut m = HashMap::new();
+        m.insert("disable-ab".to_string(), "Y".to_string());
+        m.insert("disable-group-panel".to_string(), "Y".to_string());
+        RwLock::new(m)
+    };
     pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = {
         let mut m = HashMap::new();
         m.insert("hide-network-settings".to_string(), "Y".to_string());
         m.insert("hide-server-settings".to_string(), "Y".to_string());
         m.insert("hide-remote-printer-settings".to_string(), "Y".to_string());
+        m.insert("hide-powered-by-me".to_string(), "Y".to_string());
         RwLock::new(m)
     };
 }
