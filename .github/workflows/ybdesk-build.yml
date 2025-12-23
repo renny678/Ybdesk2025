@@ -111,48 +111,87 @@ jobs:
           head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-x64-windows-static-rel-out.log" || true
         shell: bash
 
-      - name: Build rustdesk
+      # ========== 编译完整版 ==========
+      - name: Build Full Version
         run: |
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
-          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+          mv ./flutter/build/windows/x64/runner/Release ./rustdesk-full
 
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
           Expand-Archive usbmmidd_v2.zip -DestinationPath .
           Remove-Item -Path usbmmidd_v2\Win32 -Recurse
           Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
-          mv -Force .\usbmmidd_v2 ./rustdesk
+          cp -r .\usbmmidd_v2 ./rustdesk-full/
 
-      - name: find Runner.res
+      - name: find Runner.res for Full Version
         continue-on-error: true
         shell: bash
         run: |
           runner_res=$(find . -name "Runner.res");
-          if [ "$runner_res" == "" ]; then
-            echo "Runner.res: not found";
-          else
-            echo "Runner.res: $runner_res";
+          if [ "$runner_res" != "" ]; then
             cp $runner_res ./libs/portable/Runner.res;
           fi
 
-      - name: Download RustDeskTempTopMostWindow artifacts
+      - name: Download RustDeskTempTopMostWindow artifacts for Full Version
         uses: actions/download-artifact@master
         with:
           name: topmostwindow-artifacts
-          path: "./rustdesk"
+          path: "./rustdesk-full"
 
-      - name: Build self-extracted executable
+      - name: Build Full Version self-extracted executable
         shell: bash
         run: |
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
+          python3 ./generate.py -f ../../rustdesk-full/ -o . -e ../../rustdesk-full/rustdesk.exe
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/YbDesk-${{ env.VERSION }}-x86_64.exe
 
-      - name: Upload YbDesk Portable
+      # ========== 编译被控版 ==========
+      - name: Modify config for Incoming Only Version
+        shell: bash
+        run: |
+          # 在 HARD_SETTINGS 中添加 conn-type: incoming
+          sed -i 's/m.insert("disable-ab".to_string(), "Y".to_string());/m.insert("disable-ab".to_string(), "Y".to_string());\n        m.insert("conn-type".to_string(), "incoming".to_string());/' libs/hbb_common/src/config.rs
+
+      - name: Clean and Build Incoming Only Version
+        run: |
+          # 清理之前的编译
+          cargo clean
+          Remove-Item -Path ./flutter/build -Recurse -Force -ErrorAction SilentlyContinue
+          
+          # 重新编译
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          mv ./flutter/build/windows/x64/runner/Release ./rustdesk-incoming
+          
+          # 复制 USB 驱动
+          cp -r .\usbmmidd_v2 ./rustdesk-incoming/
+
+      - name: Download RustDeskTempTopMostWindow artifacts for Incoming Version
+        uses: actions/download-artifact@master
+        with:
+          name: topmostwindow-artifacts
+          path: "./rustdesk-incoming"
+
+      - name: Build Incoming Only Version self-extracted executable
+        shell: bash
+        run: |
+          pushd ./libs/portable
+          python3 ./generate.py -f ../../rustdesk-incoming/ -o . -e ../../rustdesk-incoming/rustdesk.exe
+          popd
+          mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/YbDesk-${{ env.VERSION }}-x86_64-incoming.exe
+
+      # ========== 上传两个版本 ==========
+      - name: Upload YbDesk Full Version
         uses: actions/upload-artifact@v4
         with:
-          name: YbDesk-Windows-Portable
-          path: ./SignOutput/YbDesk-*.exe
+          name: YbDesk-Windows-Full
+          path: ./SignOutput/YbDesk-${{ env.VERSION }}-x86_64.exe
+
+      - name: Upload YbDesk Incoming Only Version
+        uses: actions/upload-artifact@v4
+        with:
+          name: YbDesk-Windows-Incoming
+          path: ./SignOutput/YbDesk-${{ env.VERSION }}-x86_64-incoming.exe
