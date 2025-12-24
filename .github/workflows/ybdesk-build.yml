@@ -116,6 +116,9 @@ jobs:
         run: |
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk-full
+          
+          # 重命名 rustdesk.exe 为 YbDesk.exe
+          mv ./rustdesk-full/rustdesk.exe ./rustdesk-full/YbDesk.exe
 
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
           Expand-Archive usbmmidd_v2.zip -DestinationPath .
@@ -144,7 +147,7 @@ jobs:
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk-full/ -o . -e ../../rustdesk-full/rustdesk.exe
+          python3 ./generate.py -f ../../rustdesk-full/ -o . -e ../../rustdesk-full/YbDesk.exe
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/YbDesk-${{ env.VERSION }}-x86_64.exe
@@ -166,6 +169,9 @@ jobs:
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk-incoming
           
+          # 重命名 rustdesk.exe 为 YbDesk.exe
+          mv ./rustdesk-incoming/rustdesk.exe ./rustdesk-incoming/YbDesk.exe
+          
           # 复制 USB 驱动
           cp -r .\usbmmidd_v2 ./rustdesk-incoming/
 
@@ -179,7 +185,7 @@ jobs:
         shell: bash
         run: |
           pushd ./libs/portable
-          python3 ./generate.py -f ../../rustdesk-incoming/ -o . -e ../../rustdesk-incoming/rustdesk.exe
+          python3 ./generate.py -f ../../rustdesk-incoming/ -o . -e ../../rustdesk-incoming/YbDesk.exe
           popd
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/YbDesk-${{ env.VERSION }}-x86_64-incoming.exe
 
