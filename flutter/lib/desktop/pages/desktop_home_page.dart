@@ -556,11 +556,16 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         alignment: Alignment.centerRight,
         child: OutlinedButton(
           onPressed: () {
-            SystemNavigator.pop(); // Close the application
-            // https://github.com/flutter/flutter/issues/66631
-            if (isWindows) {
-              exit(0);
-            }
+            // 通知所有进程退出
+            bind.mainExitAll();
+            // 等待 IPC 消息发送
+            Future.delayed(const Duration(milliseconds: 100), () {
+              SystemNavigator.pop(); // Close the application
+              // https://github.com/flutter/flutter/issues/66631
+              if (isWindows) {
+                exit(0);
+              }
+            });
           },
           child: Text(translate('Quit')),
         ),

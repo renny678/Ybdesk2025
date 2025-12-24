@@ -2180,6 +2180,11 @@ pub fn main_on_main_window_close() {
     crate::portable_service::client::drop_portable_service_shared_memory();
 }
 
+/// 退出所有实例（UI、托盘、服务进程）
+pub fn main_exit_all() {
+    let _ = crate::ipc::close_all_instances();
+}
+
 pub fn main_current_is_wayland() -> SyncReturn<bool> {
     SyncReturn(current_is_wayland())
 }
